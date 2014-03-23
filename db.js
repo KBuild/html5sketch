@@ -11,11 +11,11 @@ var db = new Db('sketcher', server);
 
 //open mongodb
 db.open(function(err, db) {
-    /*db.authenticate('kbuild', 'mongo7995', function(err, result) {
+    db.authenticate('user', 'passwd', function(err, result) {
         if(result == true) {
             console.log('DB authed');
         }
-    });*/
+    });
     if(!err) {
         console.log('DB connected');
         db.collection('path', {safe:true}, function(err, col) {
