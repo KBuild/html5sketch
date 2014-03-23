@@ -8,6 +8,7 @@ _Node modules_
 
 - express
 - socket.io
+- mongodb
 
 share drawing service(on web)
 
