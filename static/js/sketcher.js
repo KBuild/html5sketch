@@ -102,7 +102,7 @@ Sketcher.prototype.updateCanvasByBrush = function (event) {
 		x = start.x + (Math.sin(angle) * z) - halfBrushW;
 		y = start.y + (Math.cos(angle) * z) - halfBrushH;
 		//console.log( x, y, angle, z );
-        socket.emit('drawStack', { x: x, y: y });
+		socket.emit('drawStack', { x: x, y: y });
 		this.context.drawImage(this.brush, x, y);
 	}
 }
@@ -127,7 +127,9 @@ Sketcher.prototype.toDataURL = function () {
 }
 
 Sketcher.prototype.clear = function () {
-    //this.count = 0;
+
+	this.count = 0;
 	var c = this.canvas[0];
 	this.context.clearRect( 0, 0, c.width, c.height );
+	socket.emit('clear');
 }
