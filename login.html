@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="utf-8" />
+	<link rel="stylesheet" type="text/css" href="assets/styles.css" />
+	<title> Login </title>
+</head>
+<body>
+	<form method="post" style="padding-top: 100px" action="/login">
+		<label for="nickname">Nickname :
+			<input type="text" id="nickname" name="nickname" value="<%=(warns.nickname ? warns.nickname : '')%>"/>
+		</label><br />
+		<label for="roomname">RoomName :
+			<input type="text" id="roomname" name="roomname" value="<%=(warns.roomname ? warns.roomname : '')%>"/>
+		</label><br />
+		<input type="submit" />
+	</form>
+	<script>
+		var nick = document.getElementById("nickname");
+		var room = document.getElementById("roomname");
+	
+		if( !nick.value ) {
+
+			nick.style.backgroundColor = "red";
+		}
+		if( !room.value ) {
+
+			room.style.backgroundColor = "red";
+		}
+
+		nick.onfocus = room.onfocus = function() {
+			this.style.backgroundColor = "white";
+		}
+	</script>
+</body>
+</html>
