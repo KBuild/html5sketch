@@ -7,6 +7,10 @@ html5sketch
 _Node modules_
 
 - express
+  - express-session
+  - body-parser
+  - cookie-parser
+  - ejs
 - socket.io
 - mongodb
 
