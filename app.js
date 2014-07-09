@@ -22,8 +22,10 @@ var sessionStore = new MongoStore({
     url: 'mongodb://user:passwd@localhost:27017/session'
 });
 
+cookieSecret = 'secretweapon';
+
 app.use(session({
-    secret: 'secretweapon',
+    secret: cookieSecret,
     store: sessionStore,
     cookie: {
         maxAge: 60000,
@@ -31,7 +33,7 @@ app.use(session({
     }
 }));
 app.use(bodyParser());
-app.use(cookieParser('secretweapon'));
+app.use(cookieParser(cookieSecret));
 app.engine('html', require('ejs').renderFile);
 var router = express.Router(); // get an instance of the express Router
 /* using now */
@@ -157,13 +159,19 @@ io.sockets.on('connection', function (socket) {
     
     // when browser connected to server
     socket.on('connect', function (data) {
-        console.log(nowNickname + '('+nowRoomname+') connected');
+        console.log('connected');
     });
     
     // when browser disconnected to server
     socket.on('disconnect', function (data) {
-        console.log(nowNickname + '('+nowRoomname+') disconnected');
-        delete sessionTable;
+        cookie = socket.handshake.headers['cookie'];
+        cookies = require('express/node_modules/cookie').parse(cookie);
+        origsid = String(cookies['connect.sid']);
+        delete sessionTable[origsid];
+
+        console.log('disconnected.');
+        console.log('now session table : ');
+        console.log(sessionTable);
         db.exit();
     });
     
@@ -179,7 +187,7 @@ var getSession = function(socket, callback) {
     sid = obj;
 
     sessionStore.get(sid, function(err, session) {
-	callback(origsid, session.roomname);
+        callback(origsid, session.roomname);
     });
 };
 
