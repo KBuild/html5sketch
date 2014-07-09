@@ -2,10 +2,10 @@ var express = require('express'),
     app = express(),
     server = require('http').createServer(app),
     io = require('socket.io').listen(server, {log: true}),
-    db, // use for db
+    db = require('./db.js'), // use for db
     session = require('express-session'),
-    bodyParser = require('body-parser'),
     cookieParser = require('cookie-parser');
+    bodyParser = require('body-parser');
 var MongoStore = require('connect-mongo')(session);
 
 var pathCount = [];
@@ -17,14 +17,21 @@ console.log('listening to port', server.address().port);
 app.use(express.static(__dirname + '/static'));
 
 /* use in Express 4.x */
+
+var sessionStore = new MongoStore({
+    url: 'mongodb://user:passwd@localhost:27017/session'
+});
+
 app.use(session({
-    secret: 'session',
-    store: new MongoStore({
-        url: 'mongodb://user:passwd@localhost:27017/session'
-    })
+    secret: 'secretweapon',
+    store: sessionStore,
+    cookie: {
+        maxAge: 60000,
+        httpOnly: true
+    }
 }));
 app.use(bodyParser());
-app.use(cookieParser());
+app.use(cookieParser('secretweapon'));
 app.engine('html', require('ejs').renderFile);
 var router = express.Router(); // get an instance of the express Router
 /* using now */
@@ -42,9 +49,7 @@ var nowNickname = '', nowRoomname = '';
 
 // default connection
 router.route('/')
-    .get( function (req, res) {
-        //console.log(req.session);
-
+    .get(function (req, res, next) {
         if(!req.session) {
             res.sendfile(__dirname + '/login.html');
         } else {
@@ -62,16 +67,13 @@ router.route('/')
             if( !(warns.nickname) || !(warns.roomname) ) {
                 res.render(__dirname + '/login.html', warns);
             } else {
-                nowNickname = req.session.nickname;
-                nowRoomname = req.session.roomname;
-                db = require('./db.js')(nowRoomname);
                 res.sendfile(__dirname + '/index.html');
             }
         }
     });
 
 router.route('/login')
-    .post( function(req, res) {
+    .post(function(req, res) {
         req.session.nickname = req.param('nickname');
         req.session.roomname = req.param('roomname');
         //console.log(req.session);
@@ -79,10 +81,6 @@ router.route('/login')
     });
 
 app.use('/', router);
-
-/*db.getCount(function(data) {
-    pathCount[nowRoomname] = data.count;
-});*/
 
 // loop with array
 var looping = function( socket, count, data ) {
@@ -103,50 +101,54 @@ setInterval(function() {
     io.sockets.in('timer').emit('checkCount');
 }, 1000);
 
+var sessionTable = [];
+
 io.sockets.on('connection', function (socket) {
+    getSession(socket, function(sid, rname) {
+        sessionTable[sid] = rname;
+    });
 
     socket.on('getCount', function (data) {
-        db.getCount(function(data) {
+        cookie = socket.handshake.headers['cookie'];
+        cookies = require('express/node_modules/cookie').parse(cookie);
+
+        origsid = String(cookies['connect.sid']);
+
+        db.getCount(sessionTable[origsid], function(data) {
             socket.emit('getCount', data);
-            pathCount[nowRoomname] = data.count;
+            pathCount[origsid] = data.count;
         });
     });
     
     // get info from browser
     socket.on('drawStack', function (data) {
-        data.idx = pathCount[nowRoomname]++;
-        data.nickname = nowNickname;
-        db.save(data); // save as database(mongodb)
-    });
-    
-    socket.on('readAll', function(data) {
-        db.load(0, function(datas) {
-            if(datas) {
-                db.getCount(function(data) {
-                    looping(socket, data.count, datas);
-                });
-            }
+        cookie = socket.handshake.headers['cookie'];
+        cookies = require('express/node_modules/cookie').parse(cookie);
+        origsid = String(cookies['connect.sid']);
+        obj = origsid.split('s:')[1].split('.')[0];
+        sid = obj;
+        data.idx = pathCount[origsid]++;
+        sessionStore.get(sid, function(err, session) {
+            data.nickname = session.nickname;
+            data.roomname = session.roomname;
+            db.save(data); // save as database(mongodb)
         });
     });
     
+    socket.on('readAll', function(data) {
+        readPath(socket, 0);
+    });
+    
     socket.on('readSome', function(data) {
-        //console.log(pathCount);
-
-        if(data.gt < pathCount[nowRoomname]) {
-            db.load(data.gt, function(datas) {
-                if(datas) {
-                    db.getCount(function(data) {
-                        looping(socket, data.count, datas);
-                        socket.emit('setCount', {count: data.count});
-                    });
-                }
-            });
-        }
+        readPath(socket, data.gt);
     });
     
     // clear all log(in database)
     socket.on('clear', function (data) {
-        db.clear(nowRoomname);
+        cookie = socket.handshake.headers['cookie'];
+        cookies = require('express/node_modules/cookie').parse(cookie);
+        origsid = String(cookies['connect.sid']);
+        db.clear(sessionTable[origsid]);
         if(pathCount != 0) {
             pathCount = 0;
             socket.emit('clear');
@@ -161,8 +163,49 @@ io.sockets.on('connection', function (socket) {
     // when browser disconnected to server
     socket.on('disconnect', function (data) {
         console.log(nowNickname + '('+nowRoomname+') disconnected');
+        delete sessionTable;
         db.exit();
     });
     
     socket.join('timer');
 });
+
+var getSession = function(socket, callback) {
+    cookie = socket.handshake.headers['cookie'];
+    cookies = require('express/node_modules/cookie').parse(cookie);
+
+    origsid = String(cookies['connect.sid']);
+    obj = origsid.split('s:')[1].split('.')[0];
+    sid = obj;
+
+    sessionStore.get(sid, function(err, session) {
+	callback(origsid, session.roomname);
+    });
+};
+
+var readPath = function(socket, gt) {
+        cookie = socket.handshake.headers['cookie'];
+        cookies = require('express/node_modules/cookie').parse(cookie);
+        origsid = String(cookies['connect.sid']);
+
+    if(gt == 0) {
+        db.load(0, sessionTable[origsid], function(datas) {
+            if(datas) {
+                db.getCount(sessionTable[origsid], function(data) {
+                    looping(socket, data.count, datas);
+                });
+            }
+        });
+    } else {
+        if(gt < pathCount[origsid]) {
+            db.load(gt, sessionTable[origsid], function(datas) {
+                if(datas) {
+                    db.getCount(sessionTable[origsid], function(data) {
+                        looping(socket, data.count, datas);
+                        socket.emit('setCount', {count: data.count});
+                    });
+                }
+            });
+        }
+    }
+}

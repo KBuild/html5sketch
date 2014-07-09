@@ -10,6 +10,7 @@ _Node modules_
   - express-session
   - body-parser
   - cookie-parser
+  - connect-mongo
   - ejs
 - socket.io
 - mongodb

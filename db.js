@@ -9,31 +9,29 @@ var Server = mongo.Server,
 var server = new Server('localhost', 27017, {auto_reconnect: true});
 var db = new Db('sketcher', server);
 
-module.exports = function(roomname) {
-    var rname = roomname;
-    var module = {};
-
     //open mongodb
     db.open(function(err, db) {
         db.authenticate('user', 'passwd', function(err, result) {
             if(result == true) {
                 console.log('DB authed');
             }
+
+            if(!err) {
+                console.log('DB connected');
+                db.collection('path', {safe:true}, function(err, col) {
+                    if(err) {
+                        console.error('Collection error in Connection. ' + err);
+                    }
+                });
+            } else {
+                console.error('DB cannot connect. ' + err);
+            }
         });
-        if(!err) {
-            console.log('DB connected');
-            db.collection(rname, {safe:true}, function(err, col) {
-                if(err) {
-                    console.error('Collection error; ' + err);
-                }
-            });
-        } else {
-            console.error('DB cannot connect. ' + err);
-        }
     });
 
-    module.save = function(data) {
-        db.collection(rname, {safe:true}, function(err, col) {
+
+    module.exports.save = exports = function(data) {
+        db.collection('path', {safe:true}, function(err, col) {
             col.insert(data, {safe:true}, function(err, result) {
                 if (err) {
                      console.error('Collection error : ' + err);
@@ -44,17 +42,17 @@ module.exports = function(roomname) {
         });
     }
 
-    module.load = function(gt, callback) {
-        db.collection(rname, {safe:true}, function(err, col) {
-            col.find({'idx':{$gt:gt}}).sort({'idx':-1}).toArray(function(err, items) {
+    module.exports.load = exports = function(gt, rname, callback) {
+        db.collection('path', {safe:true}, function(err, col) {
+            col.find({'idx':{$gt:gt},'roomname':rname}).sort({'idx':-1}).toArray(function(err, items) {
                 callback(items);
             });
         });
     }
 
-    module.getCount = function(callback) {
-        db.collection(rname, {safe:true}, function(err, col) {
-            col.find().count(function(err, result) {
+    module.exports.getCount = exports = function(rname, callback) {
+        db.collection('path', {safe:true}, function(err, col) {
+            col.find({'roomname':rname}).count(function(err, result) {
                 if(result) {
                     callback({count: result});
                 } else {
@@ -64,19 +62,15 @@ module.exports = function(roomname) {
         });
     }
 
-    module.clear = function() {
-        db.collection(rname, {safe:true}, function(err, col) {
-            col.remove(function(err, count) {
+    module.exports.clear = exports = function(rname) {
+        db.collection('path', {safe:true}, function(err, col) {
+            col.remove({'roomname':rname},{},function(err, count) {
                 //console.log(count + ' deleted.')
             });
         });
     }
 
-    module.exit = function() {
+    module.exports.exit = exports = function() {
         db.close();
     }
 
-    return module;
-};
-
-    
